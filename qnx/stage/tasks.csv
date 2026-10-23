@@ -1,0 +1,2 @@
+# name,period_ms,budget_ms,priority(1=most urgent)
+chain,200,120,1

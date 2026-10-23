@@ -1,0 +1,55 @@
+# Committed source for qnx-safety-vm/local/snippets/post_start.custom
+# (staged there by scripts/build-qnx-ifs-orin.bat). The build tree itself
+# is gitignored (/qnx-safety-vm/, mkqnximage-derived), so this is the
+# actual source of truth for the Phase-3 customisation -- edit here, not
+# in the staged copy, or a rebuild will silently discard your edit.
+#
+# Phase 3 (Orin, docs/orin-port.md): there is no DHCP server on the Orin
+# host's br0 (scripts/orin/setup-bridge-orin.sh), so OPT_IP=dhcp's dhcpcd
+# never gets a lease -- vtnet0 comes up with the driver attached but no
+# address. Force the static IP the Phase-3 IPC benchmark expects, then
+# start the TCP echo endpoint staged into the IFS by the build script's
+# generated ifs_files.custom.
+echo "=== Phase 3: static IP for br0/tap-qnx ==="
+ifconfig vtnet0 192.168.100.10 netmask 255.255.255.0 up
+
+echo "=== Phase 3: starting qnx-echo-server-net on :7000 ==="
+if [ -x /proc/boot/qnx-echo-server-net ]; then
+  /proc/boot/qnx-echo-server-net &
+else
+  echo "post_start.custom: /proc/boot/qnx-echo-server-net not staged; skipping"
+fi
+
+# Phase 3b (2026-09-18, docs/findings.md): the Safety end of the cross-partition
+# service. Kept SEPARATE from the echo server above, on its own port, rather than
+# replacing it: the echo endpoint is what the KVM-concurrency liveness probe talks
+# to, and folding the two together would make one experiment's result depend on
+# the other's code. The monitor interprets a claim and answers with a verdict; the
+# echo server still only echoes.
+echo "=== Phase 3b: starting qnx-safety-monitor on :7100 ==="
+if [ -x /proc/boot/qnx-safety-monitor ]; then
+  /proc/boot/qnx-safety-monitor &
+else
+  echo "post_start.custom: /proc/boot/qnx-safety-monitor not staged; skipping"
+fi
+
+# Phase 3b (2026-09-20): the same Safety-side judgement, carried over DDS
+# instead of a raw TCP frame. Kept alongside the two above rather than
+# replacing either -- the echo endpoint and the frame monitor are what existing
+# recorded results talk to, and removing them would invalidate those paths.
+#
+# It needs a Cyclone DDS configuration, because the default picks ONE interface
+# by priority and would not choose the bridge. CYCLONEDDS_URI points at the
+# config staged beside it; without it the participant would come up on the
+# wrong interface and simply never discover the Compute side.
+echo "=== Phase 3b: starting qnx-dds-monitor (DDS over br0) ==="
+if [ -x /proc/boot/qnx-dds-monitor ]; then
+  if [ -r /proc/boot/cyclonedds-qnx.xml ]; then
+    CYCLONEDDS_URI=file:///proc/boot/cyclonedds-qnx.xml /proc/boot/qnx-dds-monitor &
+  else
+    echo "post_start.custom: cyclonedds-qnx.xml not staged; starting with defaults"
+    /proc/boot/qnx-dds-monitor &
+  fi
+else
+  echo "post_start.custom: /proc/boot/qnx-dds-monitor not staged; skipping"
+fi

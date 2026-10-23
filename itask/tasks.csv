@@ -1,0 +1,4 @@
+# name,period_ms,budget_ms,priority(1=most urgent)
+chain,200,120,1
+det30,33,25,2
+synth,100,15,3

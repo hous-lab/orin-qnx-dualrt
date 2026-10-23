@@ -1,0 +1,77 @@
+# --- QNX NCEULA hygiene: QNX-derived binaries and eval results never enter git ---
+# IFS image and guest disk (must be built by each user with their own SDP 8.0)
+*.bin
+*.vmdk
+disk-qemu
+disk-qemu.vmdk
+**/ifs*.bin
+**/output/
+qnx-safety-vm/
+qhv/
+qnx800/
+
+# QNX-side build outputs (QNX binaries staged for the guest image)
+qnx/stage/*
+!qnx/stage/*.csv
+
+# QNX-side build outputs (extensionless QNX binaries and QNX-side objects)
+qnx/smoke/server
+qnx/smoke/qnx-echo-server-net
+linux/reference-client/linux-client
+qnx/runtime/*
+!qnx/runtime/*.c
+!qnx/runtime/*.h
+!qnx/runtime/Makefile
+qnx/timebase/*
+!qnx/timebase/*.c
+!qnx/timebase/*.h
+!qnx/timebase/Makefile
+*.o
+*.elf
+*.sym
+*.kimg
+
+# Linux-side build outputs
+linux/broker/broker
+linux/workloads/*
+!linux/workloads/*.c
+!linux/workloads/*.cu
+!linux/workloads/Makefile
+linux/reference-client/linux-client
+linux/ipc/codec_test
+contract/test_contract
+itask/qnx/backend/itask_demo_qnx
+
+# Benchmark numbers: NCEULA 4.6(i) - evaluation results are not publishable
+# without prior written approval. Results live on the private side, not in
+# this public repo. Only methodology + code are tracked here.
+results/**
+!results/README.md
+!results/header.csv
+
+# Board-local run logs / nsys artifacts
+*.qdrep
+*.nsys-rep
+*.qexec
+logs/
+*.log
+
+# Editor / local orchestration state
+.vscode/
+.idea/
+__pycache__/
+.omc/
+
+# Guest-image credentials (locally generated, never committed)
+qnx/build/local/misc_files/*
+!qnx/build/local/misc_files/README.md
+!qnx/build/local/misc_files/gen_guest_keys.sh
+qnx/build/local/ssh-ident
+
+# mkqnximage generates an SDP-derived template skeleton (options defaults,
+# snippets/*, valgrind.files, part.info) - QNX SDP content, not tracked.
+# Regenerate with your own SDP 8.0 via `mkqnximage init`, then apply our
+# delta qnx/build/local/options (which is tracked).
+qnx/build/local/snippets/
+qnx/build/local/valgrind.files
+qnx/build/local/part.info

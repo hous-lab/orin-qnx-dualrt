@@ -1,0 +1,5 @@
+# name,period_ms,budget_ms,priority,task_id,port
+chain,500,450,1,1,7300
+yolox,200,100,2,2,7200
+tlr,500,150,3,3,7200
+tlcls,100,60,4,4,7200
