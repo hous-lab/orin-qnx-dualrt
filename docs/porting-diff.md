@@ -1,6 +1,6 @@
 # porting-diff — ITaskRuntime Linux → QNX 实录
 
-同一 `itask/include/itask/runtime.hpp`（61 行）+ 同一 task-table 格式 + 同一 telemetry schema，两端后端各自落地。本文件是"平台迁移（Linux 到 QNX）"的代码级证据。
+同一 [itask/include/itask/runtime.hpp](../itask/include/itask/runtime.hpp)（61 行）+ 同一 task-table 格式 + 同一 telemetry schema，两端后端各自落地。本文件是"平台迁移（Linux 到 QNX）"的代码级证据。
 
 ## 量化
 

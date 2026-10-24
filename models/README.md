@@ -4,7 +4,7 @@
 
 ## 1. SparseDrive 4-engine 主链（T1，控制路径）
 
-四枚 ONNX（backbone / head / map / motion_plan，含 _fixed 变体）由已发布兄弟仓 [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) 的 step2 导出（自产部署 ONNX），托管于 HF [hous-lab/sparsedrive-trt-edge](https://huggingface.co/hous-lab/sparsedrive-trt-edge)。下载后在 Orin 上以 trtexec --fp16 构建为 broker_chain 期望的引擎名（backbone / head / map / motion_plan，motion_plan 用 v2_fixed 导出；具体见 linux/broker/broker_chain.cpp 与兄弟仓 step3_fp16_orin 脚本）。锚点 npy/npz 等上游文件清单以兄弟仓 ckpts/README.md 为准。
+四枚 ONNX（backbone / head / map / motion_plan，含 _fixed 变体）由已发布兄弟仓 [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) 的 step2 导出（自产部署 ONNX），托管于 HF [hous-lab/sparsedrive-trt-edge](https://huggingface.co/hous-lab/sparsedrive-trt-edge)。下载后在 Orin 上以 trtexec --fp16 构建为 broker_chain 期望的引擎名（backbone / head / map / motion_plan，motion_plan 用 v2_fixed 导出；具体见 [linux/broker/broker_chain.cpp](../linux/broker/broker_chain.cpp) 与兄弟仓 step3_fp16_orin 脚本）。锚点 npy/npz 等上游文件清单以兄弟仓 [ckpts/README.md](https://github.com/hous-lab/sparsedrive-trt-edge/blob/main/ckpts/README.md) 为准。
 
 ## 2. Autoware 官方 ONNX（T2-T4，真实包络竞争负载）
 
@@ -41,4 +41,4 @@ trtexec --onnx=traffic_light_classifier_mobilenetv2_batch_1.onnx --fp16 \
 
 - 上游权重/ONNX/锚点文件绝不入库、绝不 rehost（版权红线）
 - TRT 引擎属环境派生产物，不入库
-- QNX/BSP 派生产物（startup 二进制、ifs.bin、磁盘镜像）不可再分发，各使用者以自己的 SDP 8.0 构建（见 qnx/build/build-ifs.sh）
+- QNX/BSP 派生产物（startup 二进制、ifs.bin、磁盘镜像）不可再分发，各使用者以自己的 SDP 8.0 构建（见 [qnx/build/build-ifs.sh](../qnx/build/build-ifs.sh)）

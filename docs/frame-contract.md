@@ -1,6 +1,6 @@
 # frame_v2 contract
 
-权威源：contract/frame_v2.h（qcc 与 gcc 共享）；机器可读 schema：contract/frame_v2.json。本文件解释设计动机。
+权威源：[contract/frame_v2.h](../contract/frame_v2.h)（qcc 与 gcc 共享）；机器可读 schema：[contract/frame_v2.json](../contract/frame_v2.json)。本文件解释设计动机。
 
 ## 时间戳与分段
 

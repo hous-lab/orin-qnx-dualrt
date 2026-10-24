@@ -1,6 +1,6 @@
 # Bring-up runbook — QNX 8.0 guest on AGX Orin (KVM)
 
-目标：在 AGX Orin R36.5 上验证"宿主 Linux 持 GPU 跑 TensorRT 推理 + QNX 8.0 KVM guest 并存"的双域拓扑，并用测量关闭两个已知 bring-up 风险（GIC `Error(19)`、NISV 挂起）。阶段验收标准见 docs/milestones.md，本文件是逐步操作序列。
+目标：在 AGX Orin R36.5 上验证"宿主 Linux 持 GPU 跑 TensorRT 推理 + QNX 8.0 KVM guest 并存"的双域拓扑，并用测量关闭两个已知 bring-up 风险（GIC `Error(19)`、NISV 挂起）。阶段验收标准见 [docs/milestones.md](milestones.md)，本文件是逐步操作序列。
 
 ## 前置条件（一次性）
 
@@ -10,7 +10,7 @@
 | Software Center: com.qnx.qnx800.target.qemuvirt | build host | stock startup-qemu-virt；缺它 mkqnximage 在 ifs 步骤报 "Host file not available" |
 | Software Center: com.qnx.qnx800.bsp.hypervisor_guest_arm | build host | startup lib，build-qemu-virt.sh 重建 NISV-fixed startup 用 |
 | IFS artifacts | build host output/ | ifs.bin + disk-qemu.vmdk + disk-qemu（成对出现） |
-| board reachable | `ssh <user>@<board-ip>` | USB / PCIe NIC 均可，桥接子网见 scripts/orin/setup-bridge.sh |
+| board reachable | `ssh <user>@<board-ip>` | USB / PCIe NIC 均可，桥接子网见 [scripts/orin/setup-bridge.sh](../scripts/orin/setup-bridge.sh) |
 | /dev/kvm | board | 首先确认，见 Step 1 |
 
 ## Step 1 — 板端 KVM 可用性（5 分钟）
@@ -65,7 +65,7 @@ guest 起来后：guest 内 `ifconfig` 显示 192.168.100.10；宿主侧 `ping 1
 - [ ] 并存 30 分钟：无 OOM、无网络抖动、延迟变化可解释
 - [ ] vCPU pinning（2,3）+ guest 1G 冻结在启动脚本中固定
 - [ ] Error(19)/NISV 处置结论归档；dmesg + boot log + bench JSON 归档
-- [ ] 结果按 results/README.md 政策留存私有侧
+- [ ] 结果按 [results/README.md](../results/README.md) 政策留存私有侧
 
 ## 已知 AGX 与 Orin Nano 差异（来自参考仓）
 

@@ -1,10 +1,10 @@
 # 研究阶段与验收标准
 
-研究按阶段推进，每阶段有书面验收标准（exit criteria）；阶段描述全部用技术内容表达。细节文档：docs/bring-up-runbook.md（上板）、docs/closed-loop-design.md（闭环）、docs/porting-diff.md（双后端）、docs/stability-postmortem-guide.md（稳定性）。
+研究按阶段推进，每阶段有书面验收标准（exit criteria）；阶段描述全部用技术内容表达。细节文档：[docs/bring-up-runbook.md](bring-up-runbook.md)（上板）、[docs/closed-loop-design.md](closed-loop-design.md)（闭环）、[docs/porting-diff.md](porting-diff.md)（双后端）、[docs/stability-postmortem-guide.md](stability-postmortem-guide.md)（稳定性）。
 
 ## 阶段 1 — 可行性：QNX guest 与 GPU 推理并存
 
-在 AGX Orin R36.5 上以 KVM guest 形态运行 QNX 8.0，同时宿主侧跑真实 TensorRT 推理链。步骤见 docs/bring-up-runbook.md。
+在 AGX Orin R36.5 上以 KVM guest 形态运行 QNX 8.0，同时宿主侧跑真实 TensorRT 推理链。步骤见 [docs/bring-up-runbook.md](bring-up-runbook.md)。
 
 验收：guest 启动到 Startup complete（io-sock + echo server 起来）；宿主侧真实 4-engine 链跑通；两者并存 30 分钟稳定；vCPU pinning 与 guest 内存冻结在启动脚本中固定；KVM 下 GIC Error(19)/NISV 两个已知风险的处置结论归档。
 
@@ -32,7 +32,7 @@ QNX 侧 6 线程固定优先级 runtime（算术释放/watchdog/deadline monitor
 
 同一 task-table 与 telemetry schema 在 Linux/QNX 两端各自落地。
 
-验收：runtime.hpp 接口 + Linux（timerfd+SCHED_FIFO）与 QNX（TimerSettime+固定优先级）后端两端编译；同一任务表两端加载；docs/porting-diff.md 成文（逐差异 + 原因，含优先级方向反转）。
+验收：runtime.hpp 接口 + Linux（timerfd+SCHED_FIFO）与 QNX（TimerSettime+固定优先级）后端两端编译；同一任务表两端加载；[docs/porting-diff.md](porting-diff.md) 成文（逐差异 + 原因，含优先级方向反转）。
 
 ## 阶段 6 — 事件触发式负载
 
@@ -42,7 +42,7 @@ QNX 状态机事件 → 一次性触发任务 → broker burst → 异步完成�
 
 ## 阶段 7 — 在线闭环多模型调度
 
-把 QNX 调度权威接入真实 CARLA 在线闭环：SparseDrive 主链 + 多枚官方 Autoware 模型共存，全部推理由 QNX 释放驱动。设计与结论见 docs/closed-loop-design.md。
+把 QNX 调度权威接入真实 CARLA 在线闭环：SparseDrive 主链 + 多枚官方 Autoware 模型共存，全部推理由 QNX 释放驱动。设计与结论见 [docs/closed-loop-design.md](closed-loop-design.md)。
 
 验收：三枚官方模型 TRT 引擎构建成功并可独立推理；release-gate 注入后主链由 QNX 节奏驱动；CARLA 相机流在 gated 链路下闭环能开，多模型竞争实测。
 
@@ -50,4 +50,4 @@ QNX 状态机事件 → 一次性触发任务 → broker burst → 异步完成�
 
 长时间连续运行回答"系统能稳定多久、故障归因在哪侧"。
 
-验收：QNX runtime 多天连续运行零 QNX 侧故障（主动关闭收官）；全部中断归因在外部仿真/桥侧；死因三分法与复跑规程成文（docs/stability-postmortem-guide.md）。定量数字依 NCEULA 留私有（results/README.md）。
+验收：QNX runtime 多天连续运行零 QNX 侧故障（主动关闭收官）；全部中断归因在外部仿真/桥侧；死因三分法与复跑规程成文（[docs/stability-postmortem-guide.md](stability-postmortem-guide.md)）。定量数字依 NCEULA 留私有（[results/README.md](../results/README.md)）。

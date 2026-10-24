@@ -26,7 +26,7 @@ AGX Orin 上的双域（DualOS）推理运行时研究：Linux 域持有 GPU 跑
 
 - QNX guest 与真实 GPU 推理长期并存（非分钟级 smoke，跨重启/干扰事件的长期并存）
 - 真实闭环：CARLA 相机 → QNX gate → 真实 4-engine 链 → 控制 → CARLA，车辆在被调度推理驱动下平稳巡航并自动脱困
-- 多模型共存调度：3 枚官方 Autoware 模型与主链共存，验收窗口零 miss（定性；具体数字依 NCEULA 留私有，复测方法见 bench/）
+- 多模型共存调度：3 枚官方 Autoware 模型与主链共存，验收窗口零 miss（定性；具体数字依 NCEULA 留私有，复测方法见 [bench/](bench/)）
 - QNX runtime 多天连续运行零 QNX 侧故障（主动关闭收官，定性；数字留私有）
 - release-gate 注入未改造 ROS 2 节点（节点逻辑零改动，调度权威留在 QNX）
 - ITaskRuntime 双后端（Linux timerfd / QNX timer+sigwaitinfo）同一任务表加载，验收窗口均零 miss，移植差异成文
@@ -83,9 +83,9 @@ AGX Orin 上的双域（DualOS）推理运行时研究：Linux 域持有 GPU 跑
 
 3. **板上启动**（AGX Orin, JetPack R36.5）: 见 [docs/bring-up-runbook.md](docs/bring-up-runbook.md) （bring-up 检查点、bridge/vCPU pinning/governor 设置），runtime 侧任务表在 qnx/stage/tasks*.csv。
 
-4. **跑真实链 + 多模型调度**（可选，闭环 demo）: 引擎与 ONNX 下载/构建见 models/README.md；broker_chain 参数显式传入（见其 usage），x86 侧闭环栈用 scripts/x86/run_local_g6.sh（环境变量模板，依赖 [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) 的 step5/step6 + CARLA）。稳定性监控与死因归因规程见 docs/stability-postmortem-guide.md。
+4. **跑真实链 + 多模型调度**（可选，闭环 demo）: 引擎与 ONNX 下载/构建见 [models/README.md](models/README.md)；broker_chain 参数显式传入（见其 usage），x86 侧闭环栈用 [scripts/x86/run_local_g6.sh](scripts/x86/run_local_g6.sh)（环境变量模板，依赖 [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) 的 step5/step6 + CARLA）。稳定性监控与死因归因规程见 [docs/stability-postmortem-guide.md](docs/stability-postmortem-guide.md)。
 
-5. **测量**（bench/）: 干扰实验矩阵（bench/stats/g3_analyze.py）+ 跨域 Perfetto 时间线（timeline/merge/to_perfetto.py）。复测得到自己的数字。
+5. **测量**（[bench/](bench/)）: 干扰实验矩阵（[bench/stats/g3_analyze.py](bench/stats/g3_analyze.py)）+ 跨域 Perfetto 时间线（[timeline/merge/to_perfetto.py](timeline/merge/to_perfetto.py)）。复测得到自己的数字。
 
 ## Hardware & software
 
@@ -106,6 +106,6 @@ AGX Orin 上的双域（DualOS）推理运行时研究：Linux 域持有 GPU 跑
 ## License
 
 - MIT（见 LICENSE）
-- 第三方来源与许可见 `PROVENANCE.md`
-- QNX SDP 8.0 相关约束（非商业用途、评测结果发布限制、派生二进制不分发）见上方 NCEULA 段与 `PROVENANCE.md` 边界说明
+- 第三方来源与许可见 [PROVENANCE.md](PROVENANCE.md)
+- QNX SDP 8.0 相关约束（非商业用途、评测结果发布限制、派生二进制不分发）见上方 NCEULA 段与 [PROVENANCE.md](PROVENANCE.md) 边界说明
 - 本仓库为纯研究性质，用于非商业目的
