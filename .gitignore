@@ -47,7 +47,6 @@ itask/qnx/backend/itask_demo_qnx
 # this public repo. Only methodology + code are tracked here.
 results/**
 !results/README.md
-!results/header.csv
 
 # Board-local run logs / nsys artifacts
 *.qdrep

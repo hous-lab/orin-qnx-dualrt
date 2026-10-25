@@ -13,3 +13,15 @@
 - 契约级 7 段分解的口径：[docs/frame-contract.md](../docs/frame-contract.md)
 
 环境（板卡模式、nvpmodel/MAXN、TRT 版本、引擎来源）请如实记录在你自己的实验记录里，这是数字可解释的前提。
+
+## 测量元数据块（复测结果旁必附）
+
+- hardware: 板卡型号与内存/供电方式
+- power/clock: nvpmodel 模式（MAXN）+ jetson_clocks 状态 + CPU governor
+- software: JetPack/L4T、QNX SDP 8.0、TensorRT 版本、引擎构建命令来源
+- measurement: warmup 次数、测量迭代数、采样窗口
+- statistic: 均值 vs 百分位（P50/95/99）分列，不得混表
+- latency-scope: 模型推理延迟（纯 engine 执行）与端到端延迟（含前后处理/IPC/调度）分列，不得混表
+- 可复现性: 已验证 / 不可复现必须标注，并与已验证结果分开列
+- release-tag: 记录对应的本仓 release tag（v0.1.0 起）
+- 不同模型的任务指标不得合并成一个分数；量化结果必须配对精度指标与评测条件（本仓未做量化；复测引入量化时适用）

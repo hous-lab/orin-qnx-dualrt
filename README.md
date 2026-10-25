@@ -2,6 +2,8 @@
 
 AGX Orin 上的双域（DualOS）推理运行时研究：Linux 域持有 GPU 跑真实 TensorRT 推理（SparseDrive 4-engine 链 + 多枚官方 Autoware onnx 模型），QNX 8.0 以 KVM guest 形态运行固定优先级调度/监督（release scheduler、watchdog、deadline monitor、安全状态机），跨域以 128B 契约帧 + 9 时间戳 IPC 连接，输出统一的跨域延迟时间线与干扰实验。
 
+> **状态：Experimental — 研究已收官** · 结果最后验证于 AGX Orin R36.5 + QNX SDP 8.0 + TensorRT 10.x；x86 契约测试任意机器可复跑。研究代码，无长期兼容承诺；[issues](https://github.com/hous-lab/orin-qnx-dualrt/issues) 欢迎，PR 请先开 issue 讨论（板端复测有 SDP/硬件门禁）。
+
 ## Why: 为什么在 Orin 上做 QNX（研究定位）
 
 硬实时 OS（如 QNX）在量产车载系统中的核心价值是**确定性调度**：由一个独立的 safety 域掌握"何时释放哪个任务"的权威，compute 域只负责执行，从而把"推理是否按时完成"变成可监督、可归因、可复测的问题，保障系统级稳定性。
@@ -36,7 +38,7 @@ AGX Orin 上的双域（DualOS）推理运行时研究：Linux 域持有 GPU 跑
 
 - 不是 DRIVE OS，也不是其复现。边界是 KVM（host-mediated），不是认证 Type-1 hypervisor；QNX guest 无 GPU 访问
 - 不声称任何实时保证、determinism、freedom-from-interference、ASIL / ISO 26262
-- 原生 QNX Hypervisor 路线在 Tegra234 上不可行（iGPU 无 SMMU stream ID、BPMP 时钟无 QNX client、A78AE 无嵌套 KVM），不在本项目范围
+- 原生 QNX Hypervisor 路线在 Tegra234 上不可行（iGPU 无 SMMU stream ID、BPMP 时钟无 QNX client、A78AE 无嵌套 KVM），不在本项目范围（[docs/no-go-native-qnx-hypervisor.md](docs/no-go-native-qnx-hypervisor.md)）
 - 闭环为 CARLA 仿真器非实车；除 T1 外各模型输出不进控制路径（真实包络竞争负载）
 - **QNX NCEULA 约束**: QNX SDP 8.0 依 BlackBerry QNX 非商业用途 EULA 使用；QNX 软件的评测结果（benchmark 数字）未经书面批准不得发布——本仓库只发布方法学与代码，定量结果不入库（.gitignore 强制）；QNX/BSP 派生二进制（startup、ifs.bin、镜像）不可再分发，每个使用者用自己 SDP 8.0 构建；使用者需自备并遵守自己的 QNX SDP license
 

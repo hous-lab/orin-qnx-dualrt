@@ -40,5 +40,6 @@ trtexec --onnx=traffic_light_classifier_mobilenetv2_batch_1.onnx --fp16 \
 ## 4. 不入库政策
 
 - 上游权重/ONNX/锚点文件绝不入库、绝不 rehost（版权红线）
+- Autoware 上游 ONNX 依 Apache-2.0 发布（HF AutowareFoundation 三仓，2026-10-25 经 HF API 核验）；自产部署 ONNX 同以 Apache-2.0 托管于 hous-lab HF
 - TRT 引擎属环境派生产物，不入库
 - QNX/BSP 派生产物（startup 二进制、ifs.bin、磁盘镜像）不可再分发，各使用者以自己的 SDP 8.0 构建（见 [qnx/build/build-ifs.sh](../qnx/build/build-ifs.sh)）

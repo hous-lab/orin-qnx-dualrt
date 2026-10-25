@@ -1,0 +1,30 @@
+orin-qnx-dualrt
+Copyright 2026 hous-lab
+
+This repository is research-only and is provided under the MIT License
+(see LICENSE). Upstream works reused or referenced by this repository:
+
+- ChHaEoN/qnx-linux-dual-vm-proxy — MIT; its build-qemu-virt.sh is
+  Apache-2.0. Files reused verbatim and any modifications are recorded in
+  PROVENANCE.md.
+- SparseDriveV2 (swc-17/SparseDriveV2) — MIT. Upstream model family of the
+  deployment pipeline (sibling repo sparsedrive-trt-edge).
+- Autoware (AutowareFoundation) — Apache-2.0. The official ONNX models
+  (tensorrt_yolox, traffic_light_fine_detector, traffic_light_classifier)
+  are link-only: downloaded from the upstream Hugging Face org at build
+  time, never committed or rehosted here (see models/README.md).
+- sparsedrive-trt-edge (hous-lab) — self-produced deployment ONNX,
+  Apache-2.0, hosted at huggingface.co/hous-lab/sparsedrive-trt-edge.
+
+NOT included in this repository, and NOT redistributable from it:
+
+- QNX SDP 8.0 software, BSPs, or any QNX/BSP-derived binaries (startup
+  images, IFS images, guest disk images). QNX SDP 8.0 is used under the
+  BlackBerry QNX Non-Commercial Use EULA; every user builds with their own
+  SDP 8.0 install (see qnx/build/build-ifs.sh) and must comply with their
+  own QNX license.
+- Evaluation/benchmark numbers of QNX software: NCEULA 4.6(i) restricts
+  publication without prior written approval. This repository publishes
+  methodology and code only.
+
+Full per-file provenance table: PROVENANCE.md.
