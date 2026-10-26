@@ -1,113 +1,112 @@
 # orin-qnx-dualrt
 
-AGX Orin 上的双域（DualOS）推理运行时研究：Linux 域持有 GPU 跑真实 TensorRT 推理（SparseDrive 4-engine 链 + 多枚官方 Autoware onnx 模型），QNX 8.0 以 KVM guest 形态运行固定优先级调度/监督（release scheduler、watchdog、deadline monitor、安全状态机），跨域以 128B 契约帧 + 9 时间戳 IPC 连接，输出统一的跨域延迟时间线与干扰实验。
+DualOS inference runtime research on AGX Orin: a Linux domain holds the GPU and runs real TensorRT inference (the SparseDrive 4-engine chain plus several official Autoware ONNX models), while QNX 8.0 runs as a KVM guest providing fixed-priority release scheduling and supervision (release scheduler, watchdog, deadline monitor, safety state machine). The domains are connected by a 128B contract-frame IPC with 9 timestamps, producing a unified cross-domain latency timeline and interference experiments.
 
-> **状态：Experimental — 研究已收官** · 结果最后验证于 AGX Orin R36.5 + QNX SDP 8.0 + TensorRT 10.x；x86 契约测试任意机器可复跑。研究代码，无长期兼容承诺；[issues](https://github.com/hous-lab/orin-qnx-dualrt/issues) 欢迎，PR 请先开 issue 讨论（板端复测有 SDP/硬件门禁）。
+> **Status: Experimental - research concluded** - results last verified on AGX Orin R36.5 + QNX SDP 8.0 + TensorRT 10.x; the x86 contract tests run on any machine. Research code, no long-term compatibility promises; [issues](https://github.com/hous-lab/orin-qnx-dualrt/issues) are welcome, but please open an issue before submitting PRs (on-board re-testing is gated by SDP/hardware access).
 
-## Why: 为什么在 Orin 上做 QNX（研究定位）
+## Why QNX on Orin (research positioning)
 
-硬实时 OS（如 QNX）在量产车载系统中的核心价值是**确定性调度**：由一个独立的 safety 域掌握"何时释放哪个任务"的权威，compute 域只负责执行，从而把"推理是否按时完成"变成可监督、可归因、可复测的问题，保障系统级稳定性。
+The core value of a hard real-time OS (such as QNX) in production automotive systems is **deterministic scheduling**: an independent safety domain owns the authority over when each task is released, while the compute domain only executes. This turns "did inference finish on time" into a supervisable, attributable, re-testable question, which is what protects system-level stability.
 
-量产平台（NVIDIA DRIVE）把 Linux/QNX 双域拓扑封闭在专有平台里。
-本项目的研究问题：**在开放的研究环境（AGX Orin + KVM + 自备 QNX SDP 8.0）下，能否复刻这一双域拓扑，并用真实推理负载进行验证**。
+Production platforms (NVIDIA DRIVE) close the Linux/QNX dual-domain topology inside a proprietary platform. The research question of this project: **in an open research environment (AGX Orin + KVM + your own QNX SDP 8.0), can this dual-domain topology be reproduced and validated with real inference workloads?**
 
-## 主要工作
-> 每阶段任务与验收： [docs/milestones.md](docs/milestones.md)
+## Main work
+> Per-stage tasks and acceptance criteria: [docs/milestones.md](docs/milestones.md)
 
-- **QNX guest 上板（可行性）** — QNX 8.0 guest 在 AGX Orin R36.5 的 KVM 上启动并与 GPU 推理长期并存；SDP 自带 startup 在 KVM 下存在 GICv3 NISV 缺陷，我们自建 startup board（`-fno-auto-inc-dec` 修复 + 反汇编门检查）并做 IFS 身份验收（dumpifs 尺寸指纹）
-- **跨域 IPC 与时间基** — 64B echo smoke → 128B frame_v2 契约（13 项契约测试两端口径一致）→ 跨 VM 时间基校准闭环 → RTT 基线
-- **QNX 调度 runtime + 真实推理链** — QNX 侧 6 线程固定优先级 runtime（算术释放/watchdog/deadline monitor/安全状态机），Linux broker 驱动真实 SparseDrive 4-engine 链（setTensorAddress 零拷贝接线），deadline-miss 统计与 7 段延迟分解
-- **干扰实验 + 统一时间线** — Orin nsys 全内核清单 + QNX trace 合成统一 Perfetto 时间线；干扰实验矩阵（GPU 占空/CPU 核数/任务集/功耗）与 P50/95/99 分布，每个实验臂配机制解释
-- **ITaskRuntime 双后端** — 同一 task-table 在 Linux（timerfd）/QNX（timer+sigwaitinfo）双后端加载，量化六大实测移植差异（优先级方向反转、TIMER_ABSTIME flag 面、标准信号复用陷阱等）, [docs/porting-diff.md](docs/porting-diff.md)
-- **事件触发式负载** — QNX 状态机事件 → 一次性触发任务 → broker burst，与常驻链共存同一契约
-- **在线闭环多模型调度** — release-gate（约 90 行）注入未改造 ROS 2 节点；三枚官方 Autoware 模型 + SparseDrive 主链全部由 QNX 释放驱动；真实 CARLA 相机流在 QNX 节奏下被 gated 链路处理
-- **稳定性收官** — QNX runtime 多天连续运行零 QNX 侧故障，主动关闭收官；死因三分法与复跑规程: [docs/stability-postmortem-guide.md](docs/stability-postmortem-guide.md)
+- **QNX guest on the board (feasibility)** - a QNX 8.0 guest boots on AGX Orin R36.5 under KVM and coexists with GPU inference long-term; the SDP-shipped startup has a GICv3 NISV defect under KVM, so we built our own startup board (`-fno-auto-inc-dec` fix + a disassembly gate check) and ran IFS identity acceptance (dumpifs size fingerprint)
+- **Cross-domain IPC and timebase** - 64B echo smoke, then the 128B frame_v2 contract (13 contract tests green on both toolchains), then the cross-VM timebase calibration loop, then an RTT baseline
+- **QNX scheduling runtime + real inference chain** - a 6-thread fixed-priority QNX runtime (arithmetic release / watchdog / deadline monitor / safety state machine); a Linux broker drives the real SparseDrive 4-engine chain (zero-copy wiring via setTensorAddress); deadline-miss statistics and the 7-segment latency breakdown
+- **Interference experiments + unified timeline** - Orin nsys full kernel trace + QNX trace merged into a unified Perfetto timeline; an interference matrix (GPU duty cycle / CPU core count / task set / power mode) with P50/95/99 distributions, each experiment arm with a mechanism explanation
+- **ITaskRuntime dual backend** - the same task table loads on Linux (timerfd) and QNX (timer+sigwaitinfo) backends; six measured porting differences quantified (priority direction inversion, TIMER_ABSTIME flag face, standard-signal multiplexing trap, and more) - [docs/porting-diff.md](docs/porting-diff.md)
+- **Event-triggered workloads** - QNX state-machine event, then a one-shot triggered task, then a broker burst, coexisting with the resident chain under the same contract
+- **Online closed-loop multi-model scheduling** - a ~90-line release-gate injected into an unmodified ROS 2 node; three official Autoware models plus the SparseDrive main chain all driven by QNX releases; real CARLA camera frames processed by the gated chain at QNX cadence
+- **Stability closure** - multi-day continuous QNX runtime operation with zero QNX-side faults, concluded by deliberate shutdown; death-cause triage and re-run procedure: [docs/stability-postmortem-guide.md](docs/stability-postmortem-guide.md)
 
 
-## What we demonstrated（定性）
+## What we demonstrated (qualitative)
 
-- QNX guest 与真实 GPU 推理长期并存（非分钟级 smoke，跨重启/干扰事件的长期并存）
-- 真实闭环：CARLA 相机 → QNX gate → 真实 4-engine 链 → 控制 → CARLA，车辆在被调度推理驱动下平稳巡航并自动脱困
-- 多模型共存调度：3 枚官方 Autoware 模型与主链共存，验收窗口零 miss（定性；具体数字依 NCEULA 留私有，复测方法见 [bench/](bench/)）
-- QNX runtime 多天连续运行零 QNX 侧故障（主动关闭收官，定性；数字留私有）
-- release-gate 注入未改造 ROS 2 节点（节点逻辑零改动，调度权威留在 QNX）
-- ITaskRuntime 双后端（Linux timerfd / QNX timer+sigwaitinfo）同一任务表加载，验收窗口均零 miss，移植差异成文
-- 稳定性上限由仿真环境侧决定，不由 QNX 决定, [docs/stability-postmortem-guide.md](docs/stability-postmortem-guide.md)
+- Long-term coexistence of a QNX guest with real GPU inference (not minute-level smoke: it spans reboots and interference events)
+- Real closed loop: CARLA camera, then QNX gate, then the real 4-engine chain, then control, then CARLA - the vehicle cruises smoothly under scheduled inference and self-recovers from stalls
+- Multi-model coexistence scheduling: 3 official Autoware models alongside the main chain, zero misses in the acceptance window (qualitative; exact numbers stay private per NCEULA - re-test via [bench/](bench/))
+- Multi-day continuous QNX runtime operation with zero QNX-side faults (concluded by deliberate shutdown, qualitative; numbers stay private)
+- release-gate injected into an unmodified ROS 2 node (zero node-logic changes; scheduling authority stays in QNX)
+- ITaskRuntime dual backend (Linux timerfd / QNX timer+sigwaitinfo) loading the same task table, zero misses in acceptance windows on both sides, porting differences documented
+- The stability ceiling is set by the simulation-environment side, not by QNX - [docs/stability-postmortem-guide.md](docs/stability-postmortem-guide.md)
 
-## What this is NOT（诚实边界）
+## What this is NOT (honest boundaries)
 
-- 不是 DRIVE OS，也不是其复现。边界是 KVM（host-mediated），不是认证 Type-1 hypervisor；QNX guest 无 GPU 访问
-- 不声称任何实时保证、determinism、freedom-from-interference、ASIL / ISO 26262
-- 原生 QNX Hypervisor 路线在 Tegra234 上不可行（iGPU 无 SMMU stream ID、BPMP 时钟无 QNX client、A78AE 无嵌套 KVM），不在本项目范围（[docs/no-go-native-qnx-hypervisor.md](docs/no-go-native-qnx-hypervisor.md)）
-- 闭环为 CARLA 仿真器非实车；除 T1 外各模型输出不进控制路径（真实包络竞争负载）
-- **QNX NCEULA 约束**: QNX SDP 8.0 依 BlackBerry QNX 非商业用途 EULA 使用；QNX 软件的评测结果（benchmark 数字）未经书面批准不得发布——本仓库只发布方法学与代码，定量结果不入库（.gitignore 强制）；QNX/BSP 派生二进制（startup、ifs.bin、镜像）不可再分发，每个使用者用自己 SDP 8.0 构建；使用者需自备并遵守自己的 QNX SDP license
+- Not DRIVE OS and not a reproduction of it. The boundary is KVM (host-mediated), not a certified Type-1 hypervisor; the QNX guest has no GPU access
+- No real-time guarantees, determinism, freedom-from-interference, or ASIL / ISO 26262 claims
+- The native QNX Hypervisor route is infeasible on Tegra234 (iGPU has no SMMU stream ID, BPMP has no QNX client, A78AE has no nested KVM); out of project scope ([docs/no-go-native-qnx-hypervisor.md](docs/no-go-native-qnx-hypervisor.md))
+- The closed loop uses the CARLA simulator, not a real vehicle; except T1, no model output enters the control path (they are real-envelope competing workloads)
+- **QNX NCEULA constraint**: QNX SDP 8.0 is used under the BlackBerry QNX Non-Commercial Use EULA; evaluation results (benchmark numbers) of QNX software must not be published without written approval - this repository publishes methodology and code only, and quantitative results are not committed (enforced by .gitignore); QNX/BSP-derived binaries (startup, ifs.bin, disk images) are not redistributable, every user builds with their own SDP 8.0; users must obtain and comply with their own QNX SDP license
 
 ## Repo layout
 
-| 目录 | 内容 |
+| Directory | Contents |
 |---|---|
-| `contract/` | wire contract 单一事实源（128B frame_v2），两端共享 |
-| `qnx/` | QNX 侧: runtime（调度/监督）/ trace / timebase / smoke / IFS 构建 |
-| `qnx/ifs/` | startup-qemu-virt 源码（带 NISV 修复与门检查）+ IFS 构建 recipe |
-| `qnx/build/` | mkqnximage/IFS 构建局部配置 + 凭据生成 [misc_files/README.md](qnx/build/local/misc_files/README.md) |
-| `linux/` | Linux 侧: broker / workloads / IPC / reference-client |
-| `timeline/` | nsys profile + QNX trace → Perfetto 统一时间线 |
-| `bench/` | 实验臂定义 / runner / 统计（P50/95/99、closure residual、稳定性监控） |
-| `models/` | 模型下载表（link-only）: sparsedrive-trt-edge + Autoware 官方 ONNX |
-| `results/` | 运行产物不入库（政策见 [results/README.md](results/README.md)） |
-| `itask/` | ITaskRuntime Linux/QNX 双后端抽象 |
-| `scripts/orin/` | bridge / launch（vCPU pinning）/ governor / 采集脚本 |
-| `scripts/x86/` | 闭环 demo 启动器（环境变量驱动模板） |
-| `g6_gate/` | release-gate 头文件（注入 ROS 2 节点用） |
-| `docs/` | bring-up runbook、契约文档、闭环调度设计、移植差异、稳定性规程、阶段与验收 |
-| `PROVENANCE.md` | 逐文件来源 + license 清单 |
+| `contract/` | single source of truth for the wire contract (128B frame_v2), shared by both sides |
+| `qnx/` | QNX side: runtime (scheduling/supervision) / trace / timebase / smoke / IFS build |
+| `qnx/ifs/` | startup-qemu-virt source (with the NISV fix and the gate check) + IFS build recipe |
+| `qnx/build/` | local mkqnximage/IFS build config + credential generation - [misc_files/README.md](qnx/build/local/misc_files/README.md) |
+| `linux/` | Linux side: broker / workloads / IPC / reference-client |
+| `timeline/` | nsys profile + QNX trace, merged into a unified Perfetto timeline |
+| `bench/` | experiment-arm definitions / runner / statistics (P50/95/99, closure residual, stability monitoring) |
+| `models/` | model download table (link-only): sparsedrive-trt-edge + official Autoware ONNX |
+| `results/` | run artifacts are not committed (policy: [results/README.md](results/README.md)) |
+| `itask/` | ITaskRuntime Linux/QNX dual-backend abstraction |
+| `scripts/orin/` | bridge / launch (vCPU pinning) / governor / collection scripts |
+| `scripts/x86/` | closed-loop demo launcher (env-var-driven template) |
+| `g6_gate/` | release-gate header (for injecting into ROS 2 nodes) |
+| `docs/` | bring-up runbook, contract doc, closed-loop scheduling design, porting diffs, stability procedure, milestones and acceptance |
+| `PROVENANCE.md` | per-file provenance + license inventory |
 
 ## Get Started
 
-本仓库分 x86 可验证部分与板端部分。x86 部分任何机器可跑通；板端部分需要 AGX Orin（JetPack R36.5）与自备的 QNX SDP 8.0（非商业用途 EULA）。
+The repo splits into an x86-verifiable part and an on-board part. The x86 part runs on any machine; the on-board part needs an AGX Orin (JetPack R36.5) and your own QNX SDP 8.0 (Non-Commercial Use EULA).
 
-1. **契约测试（x86，无依赖）**
+1. **Contract tests (x86, no dependencies)**
 
    ```bash
    cd contract && make && ./test_contract
    ```
-   13 项契约测试全绿即两端口径一致。
+   13 contract tests green means both toolchains agree.
 
-2. **构建 QNX guest 镜像（SDP host）**
+2. **Build the QNX guest image (SDP host)**
 
    ```bash
-   # 需自备 QNX SDP 8.0 + BSP（build-ifs.sh 有 fail-fast 门禁）
+   # requires your own QNX SDP 8.0 + BSP (build-ifs.sh has fail-fast gates)
    export BSP=<BSP_hyp-guest-arm_be-800_* install dir>
    bash qnx/build/build-ifs.sh
-   # 生成 guest 凭据（不入库）: bash qnx/build/local/misc_files/gen_guest_keys.sh
+   # generate guest credentials (not committed): bash qnx/build/local/misc_files/gen_guest_keys.sh
    ```
-   产物 ifs.bin/disk 镜像**不分发**，仅本机使用。
+   The resulting ifs.bin/disk images are **not distributed** - local use only.
 
-3. **板上启动**（AGX Orin, JetPack R36.5）: 见 [docs/bring-up-runbook.md](docs/bring-up-runbook.md) （bring-up 检查点、bridge/vCPU pinning/governor 设置），runtime 侧任务表在 qnx/stage/tasks*.csv。
+3. **On-board bring-up** (AGX Orin, JetPack R36.5): see [docs/bring-up-runbook.md](docs/bring-up-runbook.md) (bring-up checkpoints, bridge/vCPU pinning/governor setup); the runtime-side task table is in qnx/stage/tasks*.csv.
 
-4. **跑真实链 + 多模型调度**（可选，闭环 demo）: 引擎与 ONNX 下载/构建见 [models/README.md](models/README.md)；broker_chain 参数显式传入（见其 usage），x86 侧闭环栈用 [scripts/x86/run_local_g6.sh](scripts/x86/run_local_g6.sh)（环境变量模板，依赖 [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) 的 step5/step6 + CARLA）。稳定性监控与死因归因规程见 [docs/stability-postmortem-guide.md](docs/stability-postmortem-guide.md)。
+4. **Run the real chain + multi-model scheduling** (optional, closed-loop demo): engine/ONNX download and build in [models/README.md](models/README.md); broker_chain takes explicit parameters (see its usage); the x86 closed-loop stack uses [scripts/x86/run_local_g6.sh](scripts/x86/run_local_g6.sh) (env-var template, depends on [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) step5/step6 + CARLA). Stability monitoring and death-cause attribution: [docs/stability-postmortem-guide.md](docs/stability-postmortem-guide.md).
 
-5. **测量**（[bench/](bench/)）: 干扰实验矩阵（[bench/stats/g3_analyze.py](bench/stats/g3_analyze.py)）+ 跨域 Perfetto 时间线（[timeline/merge/to_perfetto.py](timeline/merge/to_perfetto.py)）。复测得到自己的数字。
+5. **Measurement** ([bench/](bench/)): the interference matrix ([bench/stats/g3_analyze.py](bench/stats/g3_analyze.py)) + the cross-domain Perfetto timeline ([timeline/merge/to_perfetto.py](timeline/merge/to_perfetto.py)). Re-test to get your own numbers.
 
 ## Hardware & software
 
-| 项 | 值 |
+| Item | Value |
 |---|---|
 | Board | NVIDIA AGX Orin (Tegra234), JetPack/L4T R36.5, MAXN |
-| Guest | QNX SDP 8.0（非商业用途 EULA），KVM guest（2 vCPU / 1G 冻结） |
-| Linux 侧 | TRT 10.x（引擎 fp16，板上构建），CARLA 0.9.15（可选闭环） |
-| 迁移性 | 引擎/镜像环境派生不可迁移；代码与契约可迁移。数字与具体 TRT 版本强相关，不保证迁移性 |
+| Guest | QNX SDP 8.0 (Non-Commercial Use EULA), KVM guest (2 vCPU / 1G frozen) |
+| Linux side | TRT 10.x (fp16 engines, built on-board), CARLA 0.9.15 (optional closed loop) |
+| Portability | Engines/images are environment-derived and non-transferable; code and contract are portable. Numbers depend strongly on the exact TRT version; no transferability is guaranteed |
 
 ## Acknowledgements
 
-- [ChHaEoN/qnx-linux-dual-vm-proxy](https://github.com/ChHaEoN/qnx-linux-dual-vm-proxy)（MIT；build-qemu-virt.sh Apache-2.0）
-- [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) — SparseDrive 主链 ONNX 导出与部署管线（兄弟仓）
+- [ChHaEoN/qnx-linux-dual-vm-proxy](https://github.com/ChHaEoN/qnx-linux-dual-vm-proxy) (MIT; build-qemu-virt.sh is Apache-2.0)
+- [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) - SparseDrive main-chain ONNX export and deployment pipeline (sibling repo)
 - [Autoware](https://github.com/autowarefoundation/autoware_universe)
-- [SparseDriveV2](https://github.com/swc-17/SparseDriveV2)（MIT）
+- [SparseDriveV2](https://github.com/swc-17/SparseDriveV2) (MIT)
 
 ## License
 
-- MIT（见 LICENSE）
-- 第三方来源与许可见 [PROVENANCE.md](PROVENANCE.md)
-- QNX SDP 8.0 相关约束（非商业用途、评测结果发布限制、派生二进制不分发）见上方 NCEULA 段与 [PROVENANCE.md](PROVENANCE.md) 边界说明
-- 本仓库为纯研究性质，用于非商业目的
+- MIT (see LICENSE)
+- Third-party sources and licenses: [PROVENANCE.md](PROVENANCE.md)
+- QNX SDP 8.0 constraints (non-commercial use, evaluation-publication limits, non-redistributable derived binaries): see the NCEULA section above and the boundary statement in [PROVENANCE.md](PROVENANCE.md)
+- This repository is research-only, for non-commercial purposes

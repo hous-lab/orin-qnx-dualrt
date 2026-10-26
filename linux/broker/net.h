@@ -122,7 +122,7 @@ struct Net {
   }
 }; // class Net
 
-// 添加 inline 关键字来避免多重定义
+// the inline keyword avoids multiple definitions
 inline void validate(Net& net, std::string frame_dir, std::string key) {
   auto ref = net.bindings[key]->load_ref(frame_dir + key + ".bin");
   float* f_ref = reinterpret_cast<float*>(ref.data());

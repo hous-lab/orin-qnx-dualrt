@@ -85,11 +85,11 @@ struct Tensor {
     const size_t element_size = getElementSize(dtype);
     const size_t total_bytes = volume * element_size;
     if (value == 0.0f) {
-      if (ptr) { // 确保指针有效
-        cudaMemset(ptr, 0, total_bytes); // 设备内存清零
+      if (ptr) { // ensure the pointer is valid
+        cudaMemset(ptr, 0, total_bytes); // zero the device memory
       }
     } else {
-      // 非零值需要特殊处理（示例实现）
+      // non-zero values need special handling (example implementation)
       std::vector<char> host_buffer(total_bytes);
       const float pattern = value;
       for(int32_t i=0; i<volume; ++i) {
@@ -112,7 +112,7 @@ struct Tensor {
     return new_tensor;
   }
 
-  // 设备到设备拷贝方法
+  // device-to-device copy
   void copyFromDevice(const std::shared_ptr<Tensor>& src, cudaStream_t stream = nullptr) {
     if (src->dtype != dtype || src->volume != volume) {
       throw std::runtime_error("Tensor copy dimension/type mismatch");
@@ -125,7 +125,7 @@ struct Tensor {
     }
   }
 
-  // 从原始设备指针拷贝的方法
+  // copy from a raw device pointer
   void copyFromDevicePtr(const void* src_ptr, cudaStream_t stream = nullptr) {
     const size_t bytes = volume * getElementSize(dtype);
     if(stream) {
@@ -135,7 +135,7 @@ struct Tensor {
     }
   }
   
-  // 添加从主机内存拷贝到设备内存的方法
+  // copy from host memory to device memory
   void copyFromHost(const void* src_ptr, cudaStream_t stream = nullptr) {
     const size_t bytes = volume * getElementSize(dtype);
     if(stream) {
@@ -197,7 +197,7 @@ struct Tensor {
     return buffer;
   }
   
-  // 添加获取GPU指针的方法
+  // getter for the GPU pointer
   void* gpu() {
     return ptr;
   }

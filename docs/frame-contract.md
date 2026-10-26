@@ -1,10 +1,10 @@
 # frame_v2 contract
 
-权威源：[contract/frame_v2.h](../contract/frame_v2.h)（qcc 与 gcc 共享）；机器可读 schema：[contract/frame_v2.json](../contract/frame_v2.json)。本文件解释设计动机。
+Authoritative source: [contract/frame_v2.h](../contract/frame_v2.h) (shared by qcc and gcc); machine-readable schema: [contract/frame_v2.json](../contract/frame_v2.json). This file explains the design rationale.
 
-## 时间戳与分段
+## Timestamps and segments
 
-9 时间戳、7 段、telescoping（连续时间戳相减成段）：
+9 timestamps, 7 segments, telescoping (consecutive timestamp differences form segments):
 
 | segment | definition | clock |
 |---|---|---|
@@ -16,9 +16,9 @@
 
 ## Why telescoping matters
 
-每段都是相邻时间戳之差，所以 7 段之和与 t_rx_q - t_release **按构造精确相等**。推论：
+Every segment is a difference of adjacent timestamps, so the 7 segments sum to t_rx_q - t_release **exactly, by construction**. Consequences:
 
-- closure residual 是管线 sanity check，不是同步精度证明
-- 同步精度由"min-RTT/2 论断 + 跨域频率交叉验证"另行界定（在参考 RTT 基线上测量）
-- 面向汇报的 5 段视图映射为：T_ipc = T_sched + T_ipc_up + T_ipc_down；再加 T_queue/T_pre/T_infer/T_post
-- 四个 Linux 内部段永不接触跨 VM 时偏，所以分解质量不依赖同步精度——这是整条时间线故事里最站得住的性质
+- the closure residual is a pipeline sanity check, not a proof of synchronization accuracy
+- synchronization accuracy is bounded separately by the "min-RTT/2 claim + cross-domain frequency cross-check" (measured on the reference RTT baseline)
+- the reporting-facing 5-segment view maps as T_ipc = T_sched + T_ipc_up + T_ipc_down; plus T_queue/T_pre/T_infer/T_post
+- the four Linux-internal segments never touch the cross-VM clock offset, so the breakdown quality does not depend on sync accuracy - the most defensible property in the whole timeline story

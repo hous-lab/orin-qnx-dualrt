@@ -1,19 +1,19 @@
-# NO-GO：原生 QNX Hypervisor 路线（Tegra234）
+# NO-GO: the native QNX Hypervisor route (Tegra234)
 
-本文是项目的负面结果存档：一条已关闭的技术路线与关闭依据。当前仓库采用的是 KVM guest 路线，见 [docs/bring-up-runbook.md](bring-up-runbook.md)。
+This file is the project's negative-result archive: a technical route that was closed, with the evidence that closed it. The repository follows the KVM guest route, see [docs/bring-up-runbook.md](bring-up-runbook.md).
 
-## 路线
+## The route
 
-量产平台（DRIVE OS）的 Linux/QNX 双域拓扑由认证 hypervisor 承载。本研究的首选路线原本与量产同构：在 Tegra234（AGX Orin）上以原生 QNX Hypervisor 直接承载 Linux + QNX 双 guest。bring-up 阶段对这条路线做了可行性验证，结论为不可行，路线关闭。
+Production platforms (DRIVE OS) host the Linux/QNX dual-domain topology on a certified hypervisor. The preferred route of this research was originally isomorphic with production: on Tegra234 (AGX Orin), host Linux + QNX dual guests directly on the native QNX Hypervisor. Bring-up stage validated this route's feasibility and the conclusion was infeasible, route closed.
 
-## 关闭依据
+## Closure evidence
 
-三条平台事实，均在 bring-up 阶段直接确认：
+Three platform facts, all confirmed directly during bring-up:
 
-- FACT 1 — Tegra234 的 iGPU 没有可用的 SMMU stream ID：hypervisor 无法做 DMA 隔离，无法把 GPU 资源安全地赋给 QNX guest，GPU 直通不成立。
-- FACT 2 — BPMP 时钟/电源管理接口没有 QNX client：GPU/EMC 等时钟与功耗控制经由 BPMP firmware，平台侧只提供 Linux client，QNX 侧无法自行管理 GPU 时钟域。
-- FACT 3 — A78AE 内核不支持嵌套 KVM：以 QNX 为宿主、Linux KVM 叠加其上的形态不成立，反之亦然。
+- FACT 1 - the Tegra234 iGPU has no usable SMMU stream ID: the hypervisor cannot do DMA isolation and cannot safely assign GPU resources to the QNX guest, so GPU passthrough does not stand.
+- FACT 2 - the BPMP clock/power-management interface has no QNX client: GPU/EMC clock and power control go through BPMP firmware, the platform provides a Linux client only, so the QNX side cannot manage the GPU clock domains itself.
+- FACT 3 - the A78AE cores do not support nested KVM: the stacked form with QNX as host does not stand, and vice versa.
 
-## Stop condition（路线关闭的判定）
+## Stop condition (how the route was judged closed)
 
-任一必要条件缺失即关闭该路线。iGPU stream ID 缺失单独即已封死 GPU 直通；BPMP 无 QNX client 与 A78AE 不支持嵌套 KVM 使剩余形态也不成立。该结论绑定 Tegra234 + 当时的 L4T/BPMP 固件状态；未来平台固件/内核更新是否改变这些事实，未经验证（HYPOTHESIS，不作为事实口吻）。KVM guest 路线的边界（hypervisor 为宿主中介、QNX guest 无 GPU 访问）见 [README](../README.md) 的 What this is NOT（诚实边界）段。
+Any missing necessary condition closes the route. The missing iGPU stream ID alone sealed GPU passthrough; the BPMP no-QNX-client and no-nested-KVM facts close the remaining forms. The conclusion is bound to Tegra234 + the then-current L4T/BPMP firmware state; whether future platform firmware/kernel updates change these facts is unverified (HYPOTHESIS, never written in a factual voice). The boundary of the KVM guest route (hypervisor as host intermediary, QNX guest with no GPU access) is in the What this is NOT section of [README](../README.md).

@@ -1,57 +1,58 @@
-# 在线闭环多模型调度 — 设计与结论
+# Online closed-loop multi-model scheduling - design and conclusions
 
-## 目标
+## Goal
 
-把 QNX 调度权威植入真实 CARLA 在线闭环：SparseDrive 主链 + 多枚官方 Autoware 感知模型共存，全部推理由 QNX 释放驱动，测量真实多模型竞争。
+Plant the QNX scheduling authority into a real CARLA online closed loop: the SparseDrive main chain plus several official Autoware perception models coexist, all inference is driven by QNX releases, and real multi-model contention is measured.
 
-## 模型名册（全部为 Autoware 官方权重；来源与下载表见 [models/README.md](../models/README.md)）
+## Model roster (all official Autoware weights; sources and download table in [models/README.md](../models/README.md))
 
-| 任务 | 模型 | 权重来源 | 角色 |
+| Task | Model | Weights source | Role |
 |---|---|---|---|
-| T1 | SparseDrive 4-engine 链 | 自产 ONNX→TRT 引擎（[models/README.md](../models/README.md)） | 主链，控制路径（驱动 CARLA） |
-| T2 | yolox-tiny (2D 检测) | Autoware 官方 yolox-tiny.onnx | 常驻中粒度 |
-| T3 | 红绿灯细检测 | Autoware 官方 tlr_car_ped_yolox_s_batch_1.onnx | 常驻 |
-| T4 | 红绿灯分类 | Autoware 官方 traffic_light_classifier_mobilenetv2_batch_1.onnx | 高频小模型 |
-| T5（拓展，未接入） | centerpoint-tiny backbone | Autoware 官方 pts_backbone_neck_head_centerpoint_tiny.onnx | 重负载竞争源 |
+| T1 | SparseDrive 4-engine chain | self-produced ONNX, then TRT engines (see [models/README.md](../models/README.md)) | main chain, control path (drives CARLA) |
+| T2 | yolox-tiny (2D detection) | official Autoware yolox-tiny.onnx | resident mid-granularity |
+| T3 | traffic-light fine detection | official Autoware tlr_car_ped_yolox_s_batch_1.onnx | resident |
+| T4 | traffic-light classification | official Autoware traffic_light_classifier_mobilenetv2_batch_1.onnx | high-frequency small model |
+| T5 (extension, not integrated) | centerpoint-tiny backbone | official Autoware pts_backbone_neck_head_centerpoint_tiny.onnx | heavy competitor |
 
-诚实边界：除 T1 外各模型输出不进控制路径——它们是**真实包络的竞争负载**（真实权重、真实频率、真实前后处理），调度/干扰测量完全有效；T1 驱动 CARLA。
+Honest boundary: except T1, no model output enters the control path - they are **real-envelope competing workloads** (real weights, real frequencies, real pre/post-processing), so the scheduling/interference measurements remain fully valid; T1 drives CARLA.
 
-## 架构：release-gate 注入
+## Architecture: release-gate injection
 
 ```
-CARLA(x86) → 桥 → 6 路相机 topic → [gate] tensorrt_sparsedrive ROS 2 节点 → PID → Ackermann → CARLA
-                                        ▲ RELEASE(T1)
-QNX runtime ──RELEASE(T1..T4, 各自 period/priority)──► 节点/broker 侧 gate 客户端
-                                        ▲ RELEASE(T2..T4)
-                   [gate] broker 扩展执行器（T2-T4: 独立 CUDA 流 + 独立 period）
+CARLA(x86) -> bridge -> 6 camera topics -> [gate] tensorrt_sparsedrive ROS 2 node -> PID -> Ackermann -> CARLA
+                                        ^ RELEASE(T1)
+QNX runtime --RELEASE(T1..T4, each with own period/priority)--> node/broker-side gate client
+                                        ^ RELEASE(T2..T4)
+                   [gate] broker extension executors (T2-T4: dedicated CUDA stream + dedicated period)
 ```
 
-- ROS 2 节点改动约 100 行：release-gate 客户端线程 + 回调入口等待
-- T2..T4 由 broker_chain 扩展执行（每任务独立 CUDA 流 + 独立 period）
-- QNX 侧：任务表从 1 项扩到 4 项（grid 独立、priority 独立）
+- The ROS 2 node changes by ~100 lines: a release-gate client thread + a wait at the callback entry
+- T2..T4 execute via broker_chain extension executors (each task: dedicated CUDA stream + dedicated period)
+- QNX side: the task table grows from 1 to 4 entries (independent grid, independent priority)
 
-## 阶段与验收
+## Stages and acceptance
 
-| 阶段 | 内容 | 验收 |
-|---|---|---|
-| 引擎构建 | T2/T3/T4 引擎构建（trtexec --fp16）+ 单执行器跑通 | 4 模型独立可推理 |
-| gate 注入 | release-gate 注入 ROS 2 节点 + QNX 多任务任务表 | T1 由 QNX 节奏驱动 |
-| 闭环 | CARLA 在线闭环 + 多模型共存 | 闭环能开 + 竞争实测 |
-| 拓展（未做） | centerpoint 重负载 + 触发式红绿灯（红 detected → 高优先推理） | 真实"常驻+触发" |
+| Stage | Content | Acceptance |
+|---|---|
+| Engine build | T2/T3/T4 engine builds (trtexec --fp16) + single-executor run | 4 models individually inferable |
+| gate injection | release-gate injected into the ROS 2 node + the QNX multi-task task table | T1 driven at QNX cadence |
+| closed loop | CARLA online closed loop + multi-model coexistence | closed loop drivable + contention measured |
+| extension (not done) | centerpoint heavy competitor + triggered traffic light (red detected -> high-priority inference) | real "resident + triggered" |
 
-## 风险（立项时评估）
-- ONNX→TRT 构建兼容性（yolox/mobilenetv2 标准算子，预期低风险；centerpoint voxel encoder 有自定义算子，只取 backbone 需验证）
-- 闭环瓶颈在主机侧闭环速率，竞争张力来自共置模型，不来自闭环速率
-- gate 引入的释放等待语义（错过一次释放 = 跳过还是排队？→ 跳过，与主链语义一致）
+## Risks (assessed at project start)
 
-## 引擎构建结论（定性）
+- ONNX-to-TRT build compatibility (yolox/mobilenetv2 standard operators, expected low risk; centerpoint voxel encoder has custom operators, backbone-only needs validation)
+- The closed-loop bottleneck is the host-side loop rate; contention tension comes from co-located models, not from the loop rate
+- the release-wait semantics the gate introduces (a missed release = skip or queue? answer: skip, consistent with the main-chain semantics)
 
-三枚官方模型 TRT 引擎构建成功（fp16, Orin MAXN），四模型独立可推理。发现：官方 ONNX 与当时 TRT 版本全兼容（零自定义算子；yolox 的 EfficientNMS_TRT 插件加载即可），且小模型实测包络远小于立项预估——多模型竞争的张力主要来自与 T1 主链的共置而非小模型互相之间（与干扰实验矩阵的梯度结论一致）。
+## Engine-build conclusion (qualitative)
 
-## 调度核心验证（定性）
+Three official models' TRT engines built successfully (fp16, Orin MAXN), four models individually inferable. Finding: the official ONNX files were fully compatible with the then-current TRT version (zero custom operators; yolox's EfficientNMS-TRT plugin loads as-is), and the measured small-model envelope was far smaller than estimated at project start - the contention tension comes mainly from co-location with the T1 main chain rather than among the small models (consistent with the interference-matrix gradient conclusion).
 
-QNX 多任务 runtime（[qnx/runtime/dualos_qnx_g6.c](../qnx/runtime/dualos_qnx_g6.c)，任务表驱动，每任务独立 period/priority/grid，路由级共享连接）+ broker 扩展 T2-T4 执行器：验收窗口内各任务释放/完成计数一致（定性：多任务共存调度绿）。踩坑记录（全部修复，方法学价值高）：①任务表 6 列被旧 4 列覆盖 → 解析 0；②runtime stdout 串口全缓冲 → setvbuf；③broker 单连接串行服务，多任务多连接饿死 → 改路由级共享连接；④yolox ONNX 内嵌 EfficientNMS_TRT 插件 → 需 initLibNvInferPlugins；⑤旧 guest 猝死留僵尸连接（Send-Q 不 ACK）→ broker+guest 必须成对重启。
+## Scheduling-core verification (qualitative)
 
-## 闭环与收官（定性）
+QNX multi-task runtime ([qnx/runtime/dualos_qnx_g6.c](../qnx/runtime/dualos_qnx_g6.c), task-table driven, per-task period/priority/grid, route-level shared connection) + broker extension T2-T4 executors: within the acceptance window the per-task release/completion counts agree (qualitative: multi-task coexistence scheduling green). Pitfall log (all fixed, high methodology value): (1) the task table's 6 columns got overwritten by an old 4-column table, so parsing yielded 0 rows; (2) runtime stdout over the serial console was fully buffered, fixed with setvbuf; (3) the broker served connections serially over a single connection, so multi-task multi-connection starved, fixed by route-level shared connections; (4) the yolox ONNX embeds the EfficientNMS-TRT plugin, so initLibNvInferPlugins is required; (5) when an old guest died suddenly it left zombie connections (Send-Q never ACKed), so broker + guest must be restarted in pairs.
 
-真实 CARLA 相机流在 QNX 节奏下被 gated 链路处理，闭环能开。稳定性收官与死因归因见 [docs/stability-postmortem-guide.md](stability-postmortem-guide.md)（定性结论：多天连续运行零 QNX 侧故障，上限由仿真环境侧决定）。
+## Closed loop and closure (qualitative)
+
+Real CARLA camera frames get processed by the gated chain at QNX cadence, and the closed loop is drivable. Stability closure and death-cause attribution: [docs/stability-postmortem-guide.md](stability-postmortem-guide.md) (qualitative conclusion: multi-day continuous operation with zero QNX-side faults; the ceiling is set by the simulation-environment side).

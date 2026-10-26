@@ -1,30 +1,30 @@
-# models/ - 模型文件下载表（link-only）
+# models/ - model file download table (link-only)
 
-本仓库不提交任何权重/ONNX/引擎。本表给出复现调度研究需要的全部模型文件：上游 link-only（不得 rehost），下载后校验，再在板上用 trtexec 构建引擎。引擎与镜像属环境派生产物，同样不入库。
+This repository commits no weights/ONNX/engines. This table lists every model file needed to reproduce the scheduling research: upstream files are link-only (never rehosted), downloaded, verified, then built into engines on-board with trtexec. Engines and images are environment-derived and likewise not committed.
 
-## 1. SparseDrive 4-engine 主链（T1，控制路径）
+## 1. SparseDrive 4-engine main chain (T1, control path)
 
-四枚 ONNX（backbone / head / map / motion_plan，含 _fixed 变体）由已发布兄弟仓 [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) 的 step2 导出（自产部署 ONNX），托管于 HF [hous-lab/sparsedrive-trt-edge](https://huggingface.co/hous-lab/sparsedrive-trt-edge)。下载后在 Orin 上以 trtexec --fp16 构建为 broker_chain 期望的引擎名（backbone / head / map / motion_plan，motion_plan 用 v2_fixed 导出；具体见 [linux/broker/broker_chain.cpp](../linux/broker/broker_chain.cpp) 与兄弟仓 step3_fp16_orin 脚本）。锚点 npy/npz 等上游文件清单以兄弟仓 [ckpts/README.md](https://github.com/hous-lab/sparsedrive-trt-edge/blob/main/ckpts/README.md) 为准。
+The four ONNX files (backbone / head / map / motion_plan, including the _fixed variants) were exported by step2 of the released sibling repo [sparsedrive-trt-edge](https://github.com/hous-lab/sparsedrive-trt-edge) (self-produced deployment ONNX) and are hosted at HF [hous-lab/sparsedrive-trt-edge](https://huggingface.co/hous-lab/sparsedrive-trt-edge). After download, build them with trtexec --fp16 into the engine names broker_chain expects (backbone / head / map / motion_plan, motion_plan exported from v2_fixed; see [linux/broker/broker_chain.cpp](../linux/broker/broker_chain.cpp) and the sibling repo's step3_fp16_orin scripts). For upstream anchor npy/npz files, the authoritative list is the sibling repo's [ckpts/README.md](https://github.com/hous-lab/sparsedrive-trt-edge/blob/main/ckpts/README.md).
 
-## 2. Autoware 官方 ONNX（T2-T4，真实包络竞争负载）
+## 2. Official Autoware ONNX (T2-T4, real-envelope competing workloads)
 
-Autoware 官方托管（HF AutowareFoundation org），下载到 models/download/：
+Officially hosted by Autoware (the HF AutowareFoundation org), downloaded into models/download/:
 
-| 文件 | 上游 HF 仓 | 放置路径 | 校验 |
+| File | Upstream HF repo | Placement | Verification |
 |---|---|---|---|
-| yolox-tiny.onnx | [tensorrt_yolox](https://huggingface.co/AutowareFoundation/tensorrt_yolox) | models/download/ | sha256 对照 HF LFS oid（命令见下） |
-| tlr_car_ped_yolox_s_batch_1.onnx | [traffic_light_fine_detector](https://huggingface.co/AutowareFoundation/traffic_light_fine_detector) | models/download/ | 同上 |
-| traffic_light_classifier_mobilenetv2_batch_1.onnx | [traffic_light_classifier](https://huggingface.co/AutowareFoundation/traffic_light_classifier) | models/download/ | 同上 |
-| pts_backbone_neck_head_centerpoint_tiny.onnx（T5，拓展未接入） | Autoware centerpoint 相关仓（URL 以 Autoware 文档为准） | models/download/ | 同上 |
+| yolox-tiny.onnx | [tensorrt_yolox](https://huggingface.co/AutowareFoundation/tensorrt_yolox) | models/download/ | sha256 against the HF LFS oid (command below) |
+| tlr_car_ped_yolox_s_batch_1.onnx | [traffic_light_fine_detector](https://huggingface.co/AutowareFoundation/traffic_light_fine_detector) | models/download/ | same |
+| traffic_light_classifier_mobilenetv2_batch_1.onnx | [traffic_light_classifier](https://huggingface.co/AutowareFoundation/traffic_light_classifier) | models/download/ | same |
+| pts_backbone_neck_head_centerpoint_tiny.onnx (T5, extension, not integrated) | an Autoware centerpoint repo (URL per the Autoware docs) | models/download/ | same |
 
-校验命令（HF paths-info API 返回 LFS sha256 oid）：
+Verification command (the HF paths-info API returns the LFS sha256 oid):
 
 ```bash
 curl -s https://huggingface.co/api/models/AutowareFoundation/tensorrt_yolox/paths-info/main \
-  -d '{"paths":["yolox-tiny.onnx"]}' -w '' -H 'Content-Type: application/json' | jq -r '.[0].lfs.oid'
+  -d '{"paths":["yolox-tiny.onnx"]}' -H 'Content-Type: application/json' | jq -r '.[0].lfs.oid'
 ```
 
-## 3. trtexec 构建命令（在 Orin 上）
+## 3. trtexec build commands (on the Orin)
 
 ```bash
 trtexec --onnx=models/download/yolox-tiny.onnx --fp16 \
@@ -32,14 +32,14 @@ trtexec --onnx=models/download/yolox-tiny.onnx --fp16 \
 trtexec --onnx=tlr_car_ped_yolox_s_batch_1.onnx --fp16 --saveEngine=tlr_yolox_s_fp16.engine
 trtexec --onnx=traffic_light_classifier_mobilenetv2_batch_1.onnx --fp16 \
         --saveEngine=mobilenetv2_cls_fp16.engine
-# SparseDrive 四引擎: 见兄弟仓 sparsedrive-trt-edge step3_fp16_orin 的构建脚本
+# SparseDrive four engines: see the sibling repo sparsedrive-trt-edge step3_fp16_orin build scripts
 ```
 
-注意：yolox ONNX 内嵌 EfficientNMS_TRT 插件，运行时需 initLibNvInferPlugins（broker_chain 已调用）并 dlopen 对应插件库。
+Note: the yolox ONNX embeds the EfficientNMS_TRT plugin, so initLibNvInferPlugins is needed at runtime (broker_chain already calls it) plus dlopen of the plugin library.
 
-## 4. 不入库政策
+## 4. Non-commitment policy
 
-- 上游权重/ONNX/锚点文件绝不入库、绝不 rehost（版权红线）
-- Autoware 上游 ONNX 依 Apache-2.0 发布（HF AutowareFoundation 三仓，2026-10-25 经 HF API 核验）；自产部署 ONNX 同以 Apache-2.0 托管于 hous-lab HF
-- TRT 引擎属环境派生产物，不入库
-- QNX/BSP 派生产物（startup 二进制、ifs.bin、磁盘镜像）不可再分发，各使用者以自己的 SDP 8.0 构建（见 [qnx/build/build-ifs.sh](../qnx/build/build-ifs.sh)）
+- Upstream weights/ONNX/anchor files are never committed and never rehosted (red line)
+- Official Autoware ONNX is released under Apache-2.0 (the three HF AutowareFoundation repos, verified via the HF API on 2026-10-25); the self-produced deployment ONNX is likewise hosted as Apache-2.0 in the hous-lab HF org
+- TRT engines are environment-derived and not committed
+- QNX/BSP-derived artifacts (startup binary, ifs.bin, disk images) are not redistributable; every user builds with their own SDP 8.0 (see [qnx/build/build-ifs.sh](../qnx/build/build-ifs.sh))

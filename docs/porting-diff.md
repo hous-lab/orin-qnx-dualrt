@@ -1,29 +1,31 @@
-# porting-diff — ITaskRuntime Linux → QNX 实录
+# porting-diff - ITaskRuntime Linux to QNX, as it actually went
 
-同一 [itask/include/itask/runtime.hpp](../itask/include/itask/runtime.hpp)（61 行）+ 同一 task-table 格式 + 同一 telemetry schema，两端后端各自落地。本文件是"平台迁移（Linux 到 QNX）"的代码级证据。
+The same [itask/include/itask/runtime.hpp](../itask/include/itask/runtime.hpp) (61 lines) + the same task-table format + the same telemetry schema, implemented as separate backends on each side. This file is the code-level evidence of "platform porting (Linux to QNX)".
 
-## 量化
+## Quantified
 
-| 项 | Linux (timerfd_backend.cpp) | QNX (timer_backend.cpp) |
+| Item | Linux (timerfd_backend.cpp) | QNX (timer_backend.cpp) |
 |---|---|---|
-| 文件行数 | ~75 | ~85 |
-| 两文件 diff | ~60 行实质差异（结构性差异非逐行翻译） | |
-| 构建链 | g++ -std=c++17 -lpthread | qcc -std=gnu++17（无 -lpthread！） |
-| 验证 | 验收窗口零 miss（x86） | 验收窗口零 miss（AGX KVM guest） |
+| file sizes | ~75 | ~85 |
+| two-file diff | ~60 lines of substantive difference (structural, not a line-by-line translation) | |
+| build chain | g++ -std=c++17 -lpthread | qcc -std=gnu++17 (no -lpthread!) |
+| validation | zero misses in the acceptance window (x86) | zero misses in the acceptance window (AGX KVM guest) |
 
-## 六个真实差异点（全部踩过，非书面知识）
+## Six real difference points (all hit in practice, none from books)
 
-1. **优先级方向反转**：抽象 1（最紧急）→ Linux native 1，→ QNX native **255**。`map_priority(): return abstract;` vs `return 256 - abstract;` — 移植时直接复制优先级数字会瞬间反转调度行为。
-2. **定时器等待原语**：Linux `timerfd_create + read()`（fd 化，可进 epoll）；QNX `timer_create(SIGEV_SIGNAL) + sigwaitinfo()`（信号化）。生产 QNX 惯用 TimerSettime + SIGEV_THREAD_ID（每线程独占），本 demo 用 POSIX 子集并实测其多任务缺陷（见第 5 点）。
-3. **绝对锚定 flag 不同面**：同一"绝对时间锚定"意图 → Linux `TFD_TIMER_ABSTIME` vs QNX `timer_settime(TIMER_ABSTIME, ...)`。传错（QNX 侧漏传）→ 相位双重计数 → 每帧 miss（修复前整窗全 miss，修复后零 miss）。
-4. **pthread 在 libc**：QNX 8 链接不需要 -lpthread（给了反而 cannot find -lpthread）。
-5. **标准信号定时器多路复用陷阱**：多任务共用 SIGALRM 时 sigwaitinfo 互相消费彼此的过期事件（标准信号不排队、不带定时器身份）→ QNX demo 首版多任务直接挂死。生产答案 = 每任务 RT 信号/每线程 timer；Linux 侧 timerfd 天然无此问题。
-6. **console/启动面**：Linux demo 直接跑；QNX guest 需把 demo + task table 打进 IFS 并在 startup.sh 注入自启行（串口重定向），输出经 /dev/ser1 落宿主日志。
+1. **Priority direction inversion**: abstraction 1 (most urgent) maps to Linux native 1, but to QNX native **255**. `map_priority(): return abstract;` vs `return 256 - abstract;` - copying priority numbers directly during porting instantaneously inverts scheduling behavior.
+2. **Timer wait primitive**: Linux `timerfd_create + read()` (fd-based, epoll-able); QNX `timer_create(SIGEV_SIGNAL) + sigwaitinfo()` (signal-based). Production QNX conventionally uses TimerSettime + SIGEV_THREAD_ID (dedicated per thread); this demo uses the POSIX subset and documents its measured multi-task defect (see point 5).
+3. **Absolute-anchoring flag on a different face**: the same "absolute time anchoring" intent becomes Linux `TFD_TIMER_ABSTIME` vs QNX `timer_settime(TIMER_ABSTIME, ...)`. Getting it wrong (omitting it on the QNX side) causes double counting of the phase, then a miss every frame (the whole window misses before the fix, zero after).
+4. **pthread is in libc**: QNX 8 linking does not need -lpthread (passing it actually fails with cannot find -lpthread).
+5. **The standard-signal timer multiplexing trap**: when multiple tasks share SIGALRM, sigwaitinfo consumes each other's expired events (standard signals are not queued and carry no timer identity), so the first QNX demo build with multiple tasks hung outright. Production answer = per-task RT signal / per-thread timer; the Linux-side timerfd is immune by construction.
+6. **console/boot surface**: the Linux demo runs directly; the QNX guest needs the demo + task table packed into the IFS with a self-start line injected in startup.sh (serial redirection), output landing in host logs via /dev/ser1.
 
 ## can-claim
-- 同一抽象接口 + 任务表在双 OS 编译、运行、产出同构 telemetry
-- 迁移点全部有实测证据（修复前后 miss 对照为定性口径）
+
+- the same abstract interface + task table compiles, runs, and produces isomorphic telemetry on both OSes
+- every porting point has measured evidence (the before/after miss contrast is qualitative)
 
 ## cannot-claim
-- 不是全 API 面迁移（相机栈/IPC 框架不在内）
-- QNX 后端 demo 单任务表（多任务信号复用问题按第 5 点记录，生产方案已知）
+
+- not a full-API-surface migration (camera stack / IPC framework not included)
+- the QNX backend demo has a single task table (the multi-task signal-multiplexing issue is recorded per point 5; the production answer is known)
